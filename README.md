@@ -15,7 +15,7 @@ This my PyTorch implementation of Stable Diffusion works for inference (image ge
 
 ## Overview: What is Stable Diffusion?
 
-**What**: Stable Diffusion is a text-to-image generation model that creates images from text descriptions.
+**What**: Stable Diffusion is a Image-text-to-image generation model that creates images from text descriptions and input images.
 
 **Why**: Unlike traditional GANs, diffusion models are more stable to train and produce higher quality, more diverse images.
 
@@ -273,7 +273,7 @@ tokens → Embedding → [CLIPLayer × 12] → Layernorm → embeddings
 - Transformer layer: `clip.py` lines 61-126
 - Main CLIP model: `clip.py` lines 141-178
 
-### UNET Diffusion Model (`sd/diffusion.py`)
+### UNET Diffusion Model (`diffusion.py`)
 
 **What it does**: Predicts noise to remove at each diffusion timestep, conditioned on text and time.
 
@@ -336,7 +336,7 @@ Decoder Path (Upsampling):
 - Main UNET: `diffusion.py` lines 196-303
 - Diffusion wrapper: `diffusion.py` lines 427-460
 
-### DDPM Sampler (`sd/ddpm.py`)
+### DDPM Sampler (`ddpm.py`)
 
 **What it does**: Implements the mathematical formulas for the diffusion process.
 
@@ -384,7 +384,7 @@ if t > 0:
 - Denoising step: `ddpm.py` lines 106-154
 - Noise addition: `ddpm.py` lines 156-196
 
-### VAE Components (`sd/encoder.py`, `sd/decoder.py`)
+### VAE Components (`encoder.py`, `decoder.py`)
 
 **What they do**: Compress images to latent space and decompress back.
 
@@ -533,31 +533,4 @@ Use this map to navigate the codebase:
 
 ---
 
-## Common Questions
-
-### Q: Why latent space instead of pixel space?
-
-**A**: Processing 64×64×4 latents is 64× faster than 512×512×3 pixels. The VAE learns efficient compression, so we get speed without major quality loss.
-
-### Q: Why multiple denoising steps?
-
-**A**: Single-step generation is too difficult. Gradual refinement (20-50 steps) produces better quality. You can use fewer steps for speed (e.g., 20) or more for quality (e.g., 50).
-
-### Q: What is classifier-free guidance?
-
-**A**: Technique to improve prompt adherence. We generate with and without the prompt, then push toward the prompt version. Higher `cfg_scale` = stronger prompt adherence.
-
-### Q: Why time embeddings?
-
-**A**: Different noise levels require different denoising strategies. Early steps need coarse structure; late steps need fine details. Time embedding tells the model which phase it's in.
-
-### Q: How does text guide generation?
-
-**A**: Cross-attention in UNET. Each spatial position (pixel location) attends to relevant text tokens. The model learns which words affect which parts of the image.
-
-### Q: Can I use fine-tuned models?
-
-**A**: Yes! Any Stable Diffusion v1.5 checkpoint works. Download the `.ckpt` file and load it the same way. Fine-tuned models change the style/domain (e.g., anime, illustrations) but use the same architecture.
-
----
 
