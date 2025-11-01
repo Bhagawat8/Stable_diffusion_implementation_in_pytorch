@@ -46,33 +46,33 @@ Random Noise → [UNET + DDPM] → Clean Latents → [VAE Decoder] → Image
 1. **CLIP (Text Encoder)**: Converts text prompt into semantic embeddings
    - **Why**: We need a way to represent text in a format the image model understands
    - **What**: Transformer encoder that outputs 77×768 dimensional embeddings
-   - **File**: `sd/clip.py`
+   - **File**: `clip.py`
 
 2. **VAE Encoder** (for img2img): Compresses images to latent space
    - **Why**: Diffusion in latent space is much faster than pixel space
    - **What**: Encodes 512×512×3 images → 64×64×4 latents
-   - **File**: `sd/encoder.py`
+   - **File**: `encoder.py`
 
 3. **UNET (Diffusion Model)**: Predicts noise to remove at each step
    - **Why**: This is the "brain" that learns to generate images
    - **What**: U-shaped network with attention layers, conditioned on text and timestep
-   - **File**: `sd/diffusion.py`
+   - **File**: `diffusion.py`
 
 4. **VAE Decoder**: Converts latents back to images
    - **Why**: We need to convert latent representations to actual pixels
    - **What**: Decodes 64×64×4 latents → 512×512×3 images
-   - **File**: `sd/decoder.py`
+   - **File**: `decoder.py`
 
 5. **DDPM Sampler**: Implements the denoising algorithm
    - **Why**: Defines how to iteratively remove noise over multiple steps
    - **What**: Manages timesteps, noise schedules, and denoising formulas
-   - **File**: `sd/ddpm.py`
+   - **File**: `ddpm.py`
 
 ---
 
 ## Inference Pipeline: Step-by-Step
 
-The complete inference process is orchestrated in `sd/pipeline.py`. Let's walk through what happens when you generate an image:
+The complete inference process is orchestrated in `pipeline.py`. Let's walk through what happens when you generate an image:
 
 ### Step 1: Encode Text Prompt
 
@@ -91,7 +91,7 @@ cond_context = clip(cond_tokens)  # Shape: (1, 77, 768)
 **Code location**: 
 - Tokenization: `pipeline.py` lines 91-93
 - CLIP encoding: `pipeline.py` line 98
-- CLIP implementation: `sd/clip.py`
+- CLIP implementation: `clip.py`
 
 **Details**:
 - Text is tokenized into subword tokens (max 77 tokens for CLIP)
@@ -125,7 +125,7 @@ latents = sampler.add_noise(latents, sampler.timesteps[0])
 **Code location**:
 - Text2img: `pipeline.py` line 180
 - Img2img: `pipeline.py` lines 166, 173
-- VAE encoder: `sd/encoder.py`
+- VAE encoder: `encoder.py`
 
 **Details**:
 - **Why latent space (64×64×4) instead of pixel space (512×512×3)?**
@@ -157,8 +157,8 @@ for timestep in sampler.timesteps:  # e.g., [999, 980, 960, ..., 20, 0]
 
 **Code location**:
 - Main loop: `pipeline.py` lines 187-217
-- UNET forward: `sd/diffusion.py` `Diffusion.forward()`
-- DDPM step: `sd/ddpm.py` `DDPMSampler.step()`
+- UNET forward: `diffusion.py` `Diffusion.forward()`
+- DDPM step: `ddpm.py` `DDPMSampler.step()`
 
 **Details**:
 - **Why iterative?** 
@@ -176,7 +176,7 @@ for timestep in sampler.timesteps:  # e.g., [999, 980, 960, ..., 20, 0]
   - Spatial features (queries) attend to text tokens (keys/values)
   - Each spatial position learns which text tokens are relevant
   - This is how "cat" in the prompt creates a cat in the image
-  - See `sd/diffusion.py` `UNET_AttentionBlock` for implementation
+  - See `diffusion.py` `UNET_AttentionBlock` for implementation
 
 ### Step 4: Classifier-Free Guidance (CFG)
 
@@ -226,14 +226,14 @@ image = decoder(latents)  # Shape: (1, 3, 512, 512)
 image = rescale(image, (-1, 1), (0, 255))
 ```
 
-**Code location**: `pipeline.py` lines 222-238, `sd/decoder.py`
+**Code location**: `pipeline.py` lines 222-238, `decoder.py`
 
 **Details**:
 - **Why decoder needed?**
   - VAE learns a compressed representation during training
   - Decoder reconstructs pixels from this compressed representation
   - The 0.18215 scaling factor (from encoder) must be removed first
-  - See `sd/decoder.py` line 246
+  - See `decoder.py` line 246
 
 - **Architecture**:
   - Progressive upsampling: 64×64 → 128×128 → 256×256 → 512×512
@@ -244,7 +244,7 @@ image = rescale(image, (-1, 1), (0, 255))
 
 ## Component Deep Dive
 
-### CLIP Text Encoder (`sd/clip.py`)
+### CLIP Text Encoder (`clip.py`)
 
 **What it does**: Converts text tokens into semantic embeddings that guide image generation.
 
@@ -269,9 +269,9 @@ tokens → Embedding → [CLIPLayer × 12] → Layernorm → embeddings
   - Pre-norm architecture: normalization before attention/FFN
 
 **Code references**:
-- Token embedding: `sd/clip.py` lines 19-42
-- Transformer layer: `sd/clip.py` lines 61-126
-- Main CLIP model: `sd/clip.py` lines 141-178
+- Token embedding: `clip.py` lines 19-42
+- Transformer layer: `clip.py` lines 61-126
+- Main CLIP model: `clip.py` lines 141-178
 
 ### UNET Diffusion Model (`sd/diffusion.py`)
 
@@ -314,27 +314,27 @@ Decoder Path (Upsampling):
 1. **Time Embedding** (`TimeEmbedding`):
    - Converts timestep → 320-dim → 1280-dim embedding
    - Tells model how much noise is present
-   - See `sd/diffusion.py` lines 35-58
+   - See `diffusion.py` lines 35-58
 
 2. **Residual Blocks** (`UNET_ResidualBlock`):
    - Process features with time conditioning
    - Time embedding modulates feature scale
-   - See `sd/diffusion.py` lines 72-141
+   - See `diffusion.py` lines 72-141
 
 3. **Attention Blocks** (`UNET_AttentionBlock`):
    - **Self-attention**: Spatial relationships (pixel A relates to pixel B)
    - **Cross-attention**: Text conditioning (pixel attends to relevant text tokens)
    - **Feedforward**: GeGLU activation for non-linearity
-   - See `sd/diffusion.py` lines 143-273
+   - See `diffusion.py` lines 143-273
 
 4. **Skip Connections**:
    - Encoder features concatenated to decoder at same resolution
    - Preserves fine details lost in downsampling
-   - See `sd/diffusion.py` lines 298-301
+   - See `diffusion.py` lines 298-301
 
 **Code references**:
-- Main UNET: `sd/diffusion.py` lines 196-303
-- Diffusion wrapper: `sd/diffusion.py` lines 427-460
+- Main UNET: `diffusion.py` lines 196-303
+- Diffusion wrapper: `diffusion.py` lines 427-460
 
 ### DDPM Sampler (`sd/ddpm.py`)
 
@@ -380,9 +380,9 @@ if t > 0:
 - At final step (t=0), no noise added (deterministic)
 
 **Code references**:
-- Initialization: `sd/ddpm.py` lines 24-49
-- Denoising step: `sd/ddpm.py` lines 106-154
-- Noise addition: `sd/ddpm.py` lines 156-196
+- Initialization: `ddpm.py` lines 24-49
+- Denoising step: `ddpm.py` lines 106-154
+- Noise addition: `ddpm.py` lines 156-196
 
 ### VAE Components (`sd/encoder.py`, `sd/decoder.py`)
 
@@ -418,8 +418,8 @@ Latent (64×64×4)
 - Reparameterization trick makes it differentiable
 
 **Code references**:
-- Encoder: `sd/encoder.py` lines 22-137
-- Decoder: `sd/decoder.py` lines 155-255
+- Encoder: `encoder.py` lines 22-137
+- Decoder: `decoder.py` lines 155-255
 
 ---
 
@@ -458,7 +458,7 @@ Save to `data/` folder (or your preferred location).
 - Our implementation organizes layers differently
 - Converter translates between formats
 
-**Code location**: `sd/model_converter.py`
+**Code location**: `model_converter.py`
 - Large file (~1000+ lines) with weight mappings
 - Maps encoder, decoder, diffusion, and CLIP weights
 
@@ -488,7 +488,7 @@ models = preload_models_from_standard_weights(
 4. Load converted weights into models
 5. Models are ready for inference!
 
-**Code location**: `sd/model_loader.py` lines 19-61
+**Code location**: `model_loader.py` lines 19-61
 
 ---
 
@@ -497,39 +497,39 @@ models = preload_models_from_standard_weights(
 Use this map to navigate the codebase:
 
 ### Main Entry Point
-- **`sd/pipeline.py`**: `generate()` function - orchestrates entire process
+- **`pipeline.py`**: `generate()` function - orchestrates entire process
 
 ### Text Processing
-- **`sd/clip.py`**: CLIP text encoder
+- **`clip.py`**: CLIP text encoder
   - `CLIPEmbedding`: Token + position embeddings
   - `CLIPLayer`: Transformer layer (attention + feedforward)
   - `CLIP`: Main model (12 layers)
 
 ### Image Compression/Decompression
-- **`sd/encoder.py`**: VAE encoder (image → latent)
-- **`sd/decoder.py`**: VAE decoder (latent → image)
+- **`encoder.py`**: VAE encoder (image → latent)
+- **`decoder.py`**: VAE decoder (latent → image)
   - `VAE_ResidualBlock`: Feature processing
   - `VAE_AttentionBlock`: Spatial attention
 
 ### Diffusion Process
-- **`sd/diffusion.py`**: UNET model that predicts noise
+- **`diffusion.py`**: UNET model that predicts noise
   - `TimeEmbedding`: Timestep encoding
   - `UNET_ResidualBlock`: Feature processing with time conditioning
   - `UNET_AttentionBlock`: Self-attention + cross-attention (text guidance)
   - `UNET`: Main U-shaped architecture
   - `Diffusion`: Wrapper combining UNET + time embedding
 
-- **`sd/ddpm.py`**: DDPM sampling algorithm
+- **`sddpm.py`**: DDPM sampling algorithm
   - `DDPMSampler`: Manages timesteps, noise schedule, denoising
 
 ### Attention Mechanisms
-- **`sd/attention.py`**: Core attention implementations
+- **`attention.py`**: Core attention implementations
   - `SelfAttention`: Tokens attend to tokens (used in CLIP, UNET)
   - `CrossAttention`: Image features attend to text (used in UNET)
 
 ### Model Loading
-- **`sd/model_converter.py`**: Weight format conversion
-- **`sd/model_loader.py`**: High-level loading function
+- **`model_converter.py`**: Weight format conversion
+- **`model_loader.py`**: High-level loading function
 
 ---
 
@@ -561,26 +561,3 @@ Use this map to navigate the codebase:
 
 ---
 
-## Summary
-
-**What** Stable Diffusion does:
-- Generates images from text prompts
-- Works in compressed latent space for efficiency
-- Uses iterative denoising (diffusion process)
-
-**Why** this design:
-- Latent space = 64× faster than pixels
-- Iterative denoising = better quality than one-shot
-- Text conditioning via cross-attention = precise control
-
-**How** it works:
-1. CLIP encodes text → embeddings
-2. Start from noise (or encoded image for img2img)
-3. UNET iteratively removes noise, guided by text embeddings
-4. VAE decoder converts clean latents → final image
-
-The beauty of this implementation: **You understand every line of code.** Unlike using a black-box library, you can see exactly how each component contributes to the final result.
-
----
-
-For training information, see the original Stable Diffusion paper and training code. This implementation focuses on inference with pretrained weights.
